@@ -285,10 +285,6 @@ public class Main extends JavaPlugin {
 			return true;
 		}
 		if (args[0].equalsIgnoreCase("restore")) {
-			if(false) {
-				sender.sendMessage(prefix+ "Restore feature is temporarily disabled. Please load the files manually.");
-			return true;
-			}
 			if (!sender.hasPermission("serverrestorer.restore")) {
 				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 				return true;
