@@ -1,4 +1,4 @@
-package me.zombie_striker.sr;
+package me.TedLogan.tbar;
 
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;

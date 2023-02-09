@@ -1,17 +1,17 @@
-main: me.zombie_striker.sr.Main
+main: me.TedLogan.tbar.Main
 version: ${project.version}
-name: ServerRestorer
-api-version: 1.13
+name: TedsBackupAndRestore
+api-version: 1.19
 commands:
-  ServerRestorer:
-    description: Saves the server
-    aliases: [sr]
+  TedsBackupAndRestore:
+    description: Backup and Restore the server
+    aliases: [tbar]
 permissions:
-  serverrestorer.*:
-    description: Gives access to all PixelPrinter commands
+  tedsbackupandrestore.*:
+    description: Gives access to all TedsBackupAndRestore commands
     children:
-      serverrestorer.save: true
-      serverrestorer.command: true
-      serverrestorer.restore: true
+      tedsbackupandrestore.save: true
+      tedsbackupandrestore.command: true
+      tedsbackupandrestore.restore: true
 author:
-  Zombie_Striker
+  Ted Logan

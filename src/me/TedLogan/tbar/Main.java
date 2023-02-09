@@ -1,4 +1,4 @@
-package me.zombie_striker.sr;
+package me.TedLogan.tbar;
 
 import com.jcraft.jsch.Channel;
 import com.jcraft.jsch.ChannelSftp;
@@ -11,6 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.World;
+import org.bukkit.WorldCreator;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,22 +28,20 @@ import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import java.util.Calendar;
 
 public class Main extends JavaPlugin {
 
 	private static List<String> exceptions = new ArrayList<String>();
-	private static String prefix = "&6[&3ServerRestorer&6]&8";
+	private static String prefix = "&6[&3TedsBackupAndRestore&6]&8";
 	private static String kickmessage = " Restoring server to previous save. Please rejoin in a few seconds.";
 	BukkitTask br = null;
 	private boolean saveTheConfig = false;
-	private long lastSave = 0;
-	private long timedist = 0;
 	private File master = null;
 	private File backups = null;
-	private boolean saveServerJar = false;
-	private boolean savePluiginJars = false;
 	private boolean currentlySaving = false;
 	private boolean automate = true;
+	private long lastSave = 0;
 	private boolean useFTP = false;
 	private boolean useFTPS = false;
 	private boolean useSFTP = false;
@@ -51,19 +50,18 @@ public class Main extends JavaPlugin {
 	private String passwordFTP = "password";
 	private int portFTP = 80;
 	private String naming_format = "Backup-%date%";
-	private SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
+	private SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
 	private String removeFilePath = "";
 	private long maxSaveSize = -1;
 	private int maxSaveFiles = 1000;
 	private boolean deleteZipOnFail = false;
 	private boolean deleteZipOnFTP = false;
-
-	private int hourToSaveAt = -1;
-
 	private String separator = File.separator;
-
-
-
+	private String w_world = "world";
+	private String w_nether = "world_nether";
+	private String w_end = "world_the_end";
+	private List<String> a_days;
+	private List<String> a_times;
 	private int compression = Deflater.BEST_COMPRESSION;
 
 	public static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
@@ -153,24 +151,39 @@ public class Main extends JavaPlugin {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void onEnable() {
+		final List<String> days = new ArrayList<String>();
+		days.add("MONDAY");
+		days.add("TUESDAY");
+		days.add("WEDNESDAY");
+		days.add("THURSDAY");
+		days.add("FRIDAY");
+		days.add("SATURDAY");
+		days.add("SUNDAY");
+		final List<String> times = new ArrayList<String>();
+		times.add("00-00");
+		times.add("06-00");
+		times.add("12-00");
+		times.add("18-00");
+		a_days = (List<String>) a("days", days);
+		a_times = (List<String>) a("times", times);
+		lastSave = a("LastAutosave", 0L);
 		master = getDataFolder().getAbsoluteFile().getParentFile().getParentFile();
+		List<World> worlds = Bukkit.getWorlds();
+		w_world = worlds.get(0).getName();
+		w_nether = worlds.get(1).getName();
+		w_end = worlds.get(2).getName();
 		String path = ((String) a("getBackupFileDirectory", ""));
 		backups = new File((path.isEmpty() ? master.getPath() : path) +  File.separator+"backups"+ File.separator);
 		if (!backups.exists())
 			backups.mkdirs();
-		saveServerJar = (boolean) a("saveServerJar", false);
-		savePluiginJars = (boolean) a("savePluginJars", false);
 
-		timedist = toTime((String) a("AutosaveDelay", "1D,0H"));
-		lastSave = a("LastAutosave", 0L);
-
-		automate = (boolean) a("enableautoSaving", true);
+		automate = (boolean) a("enableAutoBackup", true);
 
 		naming_format = (String) a("FileNameFormat", naming_format);
 
-		String unPrefix = (String) a("prefix", "&6[&3ServerRestorer&6]&8");
+		String unPrefix = (String) a("prefix", "&6[&3TedsBackupAndRestore&6]&8");
 		prefix = ChatColor.translateAlternateColorCodes('&', unPrefix);
-		String kicky = (String) a("kickMessage", unPrefix + " Restoring server to previous save. Please rejoin in a few seconds.");
+		String kicky = (String) a("kickMessage", unPrefix + " Restoring server to previous backup. Please rejoin in a minute.");
 		kickmessage = ChatColor.translateAlternateColorCodes('&', kicky);
 
 		useFTP = (boolean) a("EnableFTP", false);
@@ -186,58 +199,58 @@ public class Main extends JavaPlugin {
 
 		removeFilePath = (String) a("FTP_Directory", removeFilePath);
 
-		hourToSaveAt = (int) a("AutoBackup-HourToBackup", hourToSaveAt);
-
-		if (!getConfig().contains("exceptions")) {
-			exceptions.add("logs");
-			exceptions.add("crash-reports");
-			exceptions.add("backups");
-			exceptions.add("dynmap");
-			exceptions.add(".lock");
-			exceptions.add("pixelprinter");
-		}
-		exceptions = (List<String>) a("exceptions", exceptions);
-
-		maxSaveSize = toByteSize((String) a("MaxSaveSize", "10G"));
-		maxSaveFiles = (int) a("MaxFileSaved", 1000);
+		maxSaveSize = toByteSize((String) a("MaxSaveSize", "300G"));
+		maxSaveFiles = (int) a("MaxFileSaved", 168);
 
 		deleteZipOnFTP = (boolean) a("DeleteZipOnFTPTransfer", false);
 		deleteZipOnFail = (boolean) a("DeleteZipIfFailed", false);
 		separator = (String) a("FolderSeparator", separator);
 		if (saveTheConfig)
 			saveConfig();
-		if (automate) {
+		if (true) {
 			final JavaPlugin thi = this;
 			br = new BukkitRunnable() {
 				@Override
 				public void run() {
-					Calendar calendar = GregorianCalendar.getInstance(); // creates a new calendar instance
-					calendar.setTime(new Date());   // assigns calendar to given date
-					int hour = calendar.get(Calendar.HOUR_OF_DAY);
-
-					if (System.currentTimeMillis() - lastSave >= timedist && (hourToSaveAt==-1 || hourToSaveAt == hour)) {
-						new BukkitRunnable() {
-							@Override
-							public void run() {
-								getConfig().set("LastAutosave", lastSave = (System.currentTimeMillis()-5000));
-								save(Bukkit.getConsoleSender());
-								saveConfig();
+					Calendar cal = Calendar.getInstance();
+					final boolean isBackupDay = a_days.stream().filter(d -> d.equalsIgnoreCase(getDayName(cal.get(7)))).findFirst().isPresent();
+					if (isBackupDay && automate) {
+						//Bukkit.getConsoleSender().sendMessage(prefix + "is backup day");
+						for (final String time : a_times) {
+							try {
+								final String[] timeStr = time.split("-");
+								if (timeStr[0].startsWith("0")) {
+									timeStr[0] = timeStr[0].substring(1);
+								}
+								if (timeStr[1].startsWith("0")) {
+									timeStr[1] = timeStr[1].substring(1);
+								}
+								final int hour = Integer.valueOf(timeStr[0]);
+								final int minute = Integer.valueOf(timeStr[1]);
+								//Bukkit.getConsoleSender().sendMessage(prefix + String.valueOf(cal.get(12))+" -- "+minute);
+								if (cal.get(11) != hour || cal.get(12) != minute) {
+									continue;
+								}
+								new BukkitRunnable() {
+									@Override
+									public void run() {
+										getConfig().set("LastAutosave", lastSave = (System.currentTimeMillis()-5000));
+										backup(Bukkit.getConsoleSender());
+										saveConfig();
+									}
+								}.runTaskLater(thi, 0);
+								return;
 							}
-						}.runTaskLater(thi, 0);
-						return;
+							catch (Exception e) {
+								Bukkit.getConsoleSender().sendMessage(prefix + "Automatic Backup failed. Please check that you set the Backup Times correctly.");
+							}
+						}
 					}
 				}
 			}.runTaskTimerAsynchronously(this, 20, 20*60);
 		}
 
 		new Metrics(this);
-
-		/*if (Bukkit.getPluginManager().getPlugin("PluginConstructorAPI") == null)
-			GithubDependDownloader.autoUpdate(this,
-					new File(getDataFolder().getParentFile(), "PluginConstructorAPI.jar"), "ZombieStriker",
-					"PluginConstructorAPI", "PluginConstructorAPI.jar");*/
-
-		//new Updater(this, 280536);
 
 	}
 
@@ -246,7 +259,7 @@ public class Main extends JavaPlugin {
 
 		if (args.length == 1) {
 			List<String> list = new ArrayList<>();
-			String[] commands = new String[]{"disableAutoSaver", "enableAutoSaver", "restore", "save","stop", "toggleOptions"};
+			String[] commands = new String[]{"disableAutoBackup", "enableAutoBackup", "restore", "backup", "stop"};
 			for (String f : commands) {
 				if (f.toLowerCase().startsWith(args[0].toLowerCase()))
 					list.add(f);
@@ -270,22 +283,21 @@ public class Main extends JavaPlugin {
 
 	@Override
 	public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-		if (!sender.hasPermission("serverrestorer.command")) {
+		if (!sender.hasPermission("tedsbackupandrestore.command")) {
 			sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 			return true;
 		}
 		if (args.length == 0) {
-			sender.sendMessage(ChatColor.GOLD + "---===+Server Restorer+===---");
-			sender.sendMessage("/sr save : Saves the server");
-			sender.sendMessage("/sr stop : Stops creating a backup of the server");
-			sender.sendMessage("/sr restore <backup> : Restores server to previous backup (automatically restarts)");
-			sender.sendMessage("/sr enableAutoSaver [1H,6H,1D,7D] : Configure how long it takes to autosave");
-			sender.sendMessage("/sr disableAutoSaver : Disables the autosaver");
-			sender.sendMessage("/sr toggleOptions : TBD");
+			sender.sendMessage(ChatColor.GOLD + "---===+Ted's Backup & Restore+===---");
+			sender.sendMessage("/tbar backup : Backup the server");
+			sender.sendMessage("/tbar stop : Stops creating a backup of the server");
+			sender.sendMessage("/tbar restore <backup> : Restores server to previous backup (automatically restarts)");
+			sender.sendMessage("/tbar enableAutoBackup : Enable the autobackup");
+			sender.sendMessage("/tbar disableAutoBackup : Disables the autobackup");
 			return true;
 		}
 		if (args[0].equalsIgnoreCase("restore")) {
-			if (!sender.hasPermission("serverrestorer.restore")) {
+			if (!sender.hasPermission("tedsbackupandrestore.restore")) {
 				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 				return true;
 			}
@@ -308,7 +320,7 @@ public class Main extends JavaPlugin {
 		}
 
 		if (args[0].equalsIgnoreCase("stop")) {
-			if (!sender.hasPermission("serverrestorer.save")) {
+			if (!sender.hasPermission("tedsbackupandrestore.save")) {
 				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 				return true;
 			}
@@ -319,8 +331,8 @@ public class Main extends JavaPlugin {
 			sender.sendMessage(prefix + " The server is not currently being saved.");
 			return true;
 		}
-		if (args[0].equalsIgnoreCase("save")) {
-			if (!sender.hasPermission("serverrestorer.save")) {
+		if (args[0].equalsIgnoreCase("backup")) {
+			if (!sender.hasPermission("tedsbackupandrestore.save")) {
 				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 				return true;
 			}
@@ -328,63 +340,33 @@ public class Main extends JavaPlugin {
 				sender.sendMessage(prefix + " The server is currently being saved. Please wait.");
 				return true;
 			}
-			save(sender);
+			backup(sender);
 			return true;
 		}
-		if (args[0].equalsIgnoreCase("disableAutoSaver")) {
-			if (!sender.hasPermission("serverrestorer.save")) {
+		if (args[0].equalsIgnoreCase("disableAutoBackup")) {
+			if (!sender.hasPermission("tedsbackupandrestore.save")) {
 				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 				return true;
 			}
-			if (br != null)
-				br.cancel();
-			br = null;
-			getConfig().set("enableautoSaving", false);
+			getConfig().set("enableAutoBackup", false);
 			saveConfig();
-			sender.sendMessage(prefix + " Canceled delay.");
+			automate = getConfig().getBoolean("enableAutoBackup");
+			sender.sendMessage(prefix + " Disabled auto backup.");
 		}
-		if (args[0].equalsIgnoreCase("enableAutoSaver")) {
-			if (!sender.hasPermission("serverrestorer.save")) {
+		if (args[0].equalsIgnoreCase("enableAutoBackup")) {
+			if (!sender.hasPermission("tedsbackupandrestore.save")) {
 				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
 				return true;
 			}
-			if (args.length == 1) {
-				sender.sendMessage(prefix + " Please select a delay [E.G. 0.5H, 6H, 1D, 7D...]");
-				return true;
-			}
-			String delay = args[1];
-			getConfig().set("AutosaveDelay", delay);
-			getConfig().set("enableautoSaving", true);
+			getConfig().set("enableAutoBackup", true);
 			saveConfig();
-			if (br != null)
-				br.cancel();
-			br = null;
-			br = new BukkitRunnable() {
-				@Override
-				public void run() {
-					if (System.currentTimeMillis() - lastSave > timedist) {
-						save(Bukkit.getConsoleSender());
-						getConfig().set("LastAutosave", lastSave = System.currentTimeMillis());
-						saveConfig();
-						return;
-					}
-				}
-			}.runTaskTimerAsynchronously(this, 20, 20 * 60 * 30);
-
-			sender.sendMessage(prefix + " Set the delay to \"" + delay + "\".");
-		}
-		if (args[0].equalsIgnoreCase("toggleOptions")) {
-			if (!sender.hasPermission("serverrestorer.save")) {
-				sender.sendMessage(prefix + ChatColor.RED + " You do not have permission to use this command.");
-				return true;
-			}
-			sender.sendMessage(prefix + " Coming soon !");
-			return true;
+			automate = getConfig().getBoolean("enableAutoBackup");
+			sender.sendMessage(prefix + " Enabled auto Backup");
 		}
 		return true;
 	}
 
-	public void save(CommandSender sender) {
+	public void backup(CommandSender sender) {
 		currentlySaving = true;
 		sender.sendMessage(prefix + " Starting to save directory. Please wait.");
 		List<World> autosave = new ArrayList<>();
@@ -567,7 +549,9 @@ public class Main extends JavaPlugin {
 		for(String split : time.split(",")) {
 			split = split.trim();
 			long k = 1;
-			if (split.toUpperCase().endsWith("H")) {
+			if (split.toUpperCase().endsWith("M")) {
+				k *= 60;
+			} else if (split.toUpperCase().endsWith("H")) {
 				k *= 60 * 60;
 			} else if (split.toUpperCase().endsWith("D")) {
 				k *= 60 * 60 * 24;
@@ -664,15 +648,13 @@ public class Main extends JavaPlugin {
 				if(!currentlySaving)
 					return;
 				// this.savedBytes += folder.length();
+				if ((!srcFile.contains(w_world)) && (!srcFile.contains(w_nether)) && (!srcFile.contains(w_end))) {
+					//Bukkit.getConsoleSender().sendMessage(folder.toString());
+					return;
+				}
 				if (folder.isDirectory()) {
 					addFolderToZip(path, srcFile, zip);
 				} else {
-					if (folder.getName().endsWith("jar")) {
-						if (path.contains("plugins") && (!savePluiginJars) || (!path.contains("plugins") && (!saveServerJar))) {
-							return;
-						}
-					}
-
 					byte[] buf = new byte['?'];
 
 					FileInputStream in = new FileInputStream(srcFile);
@@ -732,4 +714,35 @@ public class Main extends JavaPlugin {
 		}
 		return k;
 	}
+	private String getDayName(final int dayNumber) {
+		if (dayNumber == 1) {
+			return "SUNDAY";
+		}
+		if (dayNumber == 2) {
+			return "MONDAY";
+		}
+		if (dayNumber == 3) {
+			return "TUESDAY";
+		}
+		if (dayNumber == 4) {
+			return "WEDNESDAY";
+		}
+		if (dayNumber == 5) {
+			return "THURSDAY";
+		}
+		if (dayNumber == 6) {
+			return "FRIDAY";
+		}
+		if (dayNumber == 7) {
+			return "SATURDAY";
+		}
+		Bukkit.getConsoleSender().sendMessage("Error while converting number in day.");
+		return null;
+	}
+	public World loadWorld(String worldName) {
+		WorldCreator worldCreator = new WorldCreator(worldName);
+		Bukkit.getServer().createWorld(worldCreator);
+		return Bukkit.getWorld(worldName);
+	}
 }
+
