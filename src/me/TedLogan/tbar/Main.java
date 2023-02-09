@@ -11,7 +11,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.World;
-import org.bukkit.WorldCreator;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -21,20 +20,19 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.*;
-import java.net.SocketException;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import java.util.Calendar;
 
+@SuppressWarnings({"ResultOfMethodCallIgnored", "NullableProblems"})
 public class Main extends JavaPlugin {
 
-	private static List<String> exceptions = new ArrayList<String>();
 	private static String prefix = "&6[&3TedsBackupAndRestore&6]&8";
-	private static String kickmessage = " Restoring server to previous save. Please rejoin in a few seconds.";
+	private static String kickmessage = " Restoring server to a previous backup. Please rejoin in a minute.";
 	BukkitTask br = null;
 	private boolean saveTheConfig = false;
 	private File master = null;
@@ -48,9 +46,9 @@ public class Main extends JavaPlugin {
 	private String serverFTP = "www.example.com";
 	private String userFTP = "User";
 	private String passwordFTP = "password";
-	private int portFTP = 80;
+	private int portFTP = 21;
 	private String naming_format = "Backup-%date%";
-	private SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
+	private final SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
 	private String removeFilePath = "";
 	private long maxSaveSize = -1;
 	private int maxSaveFiles = 1000;
@@ -77,14 +75,6 @@ public class Main extends JavaPlugin {
 		return destFile;
 	}
 
-	private static boolean isExempt(String path) {
-		path = path.toLowerCase().trim();
-		for (String s : exceptions)
-			if (path.endsWith(s.toLowerCase().trim()))
-				return true;
-		return false;
-	}
-
 	public static String humanReadableByteCount(long bytes, boolean si) {
 		int unit = si ? 1000 : 1024;
 		if (bytes < unit)
@@ -98,7 +88,7 @@ public class Main extends JavaPlugin {
 		long length = 0;
 		if(directory==null)return -1;
 
-		for (File file : directory.listFiles()) {
+		for (File file : Objects.requireNonNull(directory.listFiles())) {
 			if (file.isFile())
 				length += file.length();
 			else
@@ -108,18 +98,15 @@ public class Main extends JavaPlugin {
 	}
 
 	public static File firstFileModified(File dir) {
-		File fl = dir;
-		File[] files = fl.listFiles(new FileFilter() {
-			public boolean accept(File file) {
-				return file.isFile();
-			}
-		});
+		File[] files = dir.listFiles(File::isFile);
 		long lastMod = Long.MAX_VALUE;
 		File choice = null;
-		for (File file : files) {
-			if (file.lastModified() < lastMod) {
-				choice = file;
-				lastMod = file.lastModified();
+		if (files != null) {
+			for (File file : files) {
+				if (file.lastModified() < lastMod) {
+					choice = file;
+					lastMod = file.lastModified();
+				}
 			}
 		}
 		return choice;
@@ -151,7 +138,7 @@ public class Main extends JavaPlugin {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void onEnable() {
-		final List<String> days = new ArrayList<String>();
+		final List<String> days = new ArrayList<>();
 		days.add("MONDAY");
 		days.add("TUESDAY");
 		days.add("WEDNESDAY");
@@ -159,7 +146,7 @@ public class Main extends JavaPlugin {
 		days.add("FRIDAY");
 		days.add("SATURDAY");
 		days.add("SUNDAY");
-		final List<String> times = new ArrayList<String>();
+		final List<String> times = new ArrayList<>();
 		times.add("00-00");
 		times.add("06-00");
 		times.add("12-00");
@@ -207,48 +194,44 @@ public class Main extends JavaPlugin {
 		separator = (String) a("FolderSeparator", separator);
 		if (saveTheConfig)
 			saveConfig();
-		if (true) {
-			final JavaPlugin thi = this;
-			br = new BukkitRunnable() {
-				@Override
-				public void run() {
-					Calendar cal = Calendar.getInstance();
-					final boolean isBackupDay = a_days.stream().filter(d -> d.equalsIgnoreCase(getDayName(cal.get(7)))).findFirst().isPresent();
-					if (isBackupDay && automate) {
-						//Bukkit.getConsoleSender().sendMessage(prefix + "is backup day");
-						for (final String time : a_times) {
-							try {
-								final String[] timeStr = time.split("-");
-								if (timeStr[0].startsWith("0")) {
-									timeStr[0] = timeStr[0].substring(1);
-								}
-								if (timeStr[1].startsWith("0")) {
-									timeStr[1] = timeStr[1].substring(1);
-								}
-								final int hour = Integer.valueOf(timeStr[0]);
-								final int minute = Integer.valueOf(timeStr[1]);
-								//Bukkit.getConsoleSender().sendMessage(prefix + String.valueOf(cal.get(12))+" -- "+minute);
-								if (cal.get(11) != hour || cal.get(12) != minute) {
-									continue;
-								}
-								new BukkitRunnable() {
-									@Override
-									public void run() {
-										getConfig().set("LastAutosave", lastSave = (System.currentTimeMillis()-5000));
-										backup(Bukkit.getConsoleSender());
-										saveConfig();
-									}
-								}.runTaskLater(thi, 0);
-								return;
+		final JavaPlugin thiz = this;
+		br = new BukkitRunnable() {
+			@Override
+			public void run() {
+				Calendar cal = Calendar.getInstance();
+				final boolean isBackupDay = a_days.stream().anyMatch(d -> d.equalsIgnoreCase(getDayName(cal.get(Calendar.DAY_OF_WEEK))));
+				if (isBackupDay && automate) {
+					for (final String time : a_times) {
+						try {
+							final String[] timeStr = time.split("-");
+							if (timeStr[0].startsWith("0")) {
+								timeStr[0] = timeStr[0].substring(1);
 							}
-							catch (Exception e) {
-								Bukkit.getConsoleSender().sendMessage(prefix + "Automatic Backup failed. Please check that you set the Backup Times correctly.");
+							if (timeStr[1].startsWith("0")) {
+								timeStr[1] = timeStr[1].substring(1);
 							}
+							final int hour = Integer.parseInt(timeStr[0]);
+							final int minute = Integer.parseInt(timeStr[1]);
+							if (cal.get(Calendar.HOUR_OF_DAY) != hour || cal.get(Calendar.MINUTE) != minute) {
+								continue;
+							}
+							new BukkitRunnable() {
+								@Override
+								public void run() {
+									getConfig().set("LastAutosave", lastSave = (System.currentTimeMillis()-5000));
+									backup(Bukkit.getConsoleSender());
+									saveConfig();
+								}
+							}.runTaskLater(thiz, 0);
+							return;
+						}
+						catch (Exception e) {
+							Bukkit.getConsoleSender().sendMessage(prefix + "Automatic Backup failed. Please check that you set the Backup Times correctly.");
 						}
 					}
 				}
-			}.runTaskTimerAsynchronously(this, 20, 20*60);
-		}
+			}
+		}.runTaskTimerAsynchronously(this, 20, 20*60);
 
 		new Metrics(this);
 
@@ -271,7 +254,7 @@ public class Main extends JavaPlugin {
 		if (args.length > 1) {
 			if (args[0].equalsIgnoreCase("restore")) {
 				List<String> list = new ArrayList<>();
-				for (File f : getBackupFolder().listFiles()) {
+				for (File f : Objects.requireNonNull(getBackupFolder().listFiles())) {
 					if (f.getName().toLowerCase().startsWith(args[1].toLowerCase()))
 						list.add(f.getName());
 				}
@@ -368,7 +351,7 @@ public class Main extends JavaPlugin {
 
 	public void backup(CommandSender sender) {
 		currentlySaving = true;
-		sender.sendMessage(prefix + " Starting to save directory. Please wait.");
+		sender.sendMessage(prefix + " Starting to backup world. Please wait.");
 		List<World> autosave = new ArrayList<>();
 		for (World loaded : Bukkit.getWorlds()) {
 			try {
@@ -378,7 +361,7 @@ public class Main extends JavaPlugin {
 					loaded.setAutoSave(false);
 				}
 
-			} catch (Exception e) {
+			} catch (Exception ignored) {
 			}
 		}
 		new BukkitRunnable() {
@@ -386,15 +369,15 @@ public class Main extends JavaPlugin {
 			public void run() {
 				try {
 					try {
-						if(backups.listFiles().length > maxSaveFiles){
-							for(int i  = 0; i < backups.listFiles().length-maxSaveFiles; i++){
+						if(Objects.requireNonNull(backups.listFiles()).length > maxSaveFiles){
+							for(int i = 0; i < Objects.requireNonNull(backups.listFiles()).length-maxSaveFiles; i++){
 								File oldestBack = firstFileModified(backups);
 								sender.sendMessage(prefix + ChatColor.RED + oldestBack.getName()
 										+ ": File goes over max amount of files that can be saved.");
 								oldestBack.delete();
 							}
 						}
-						for (int j = 0; j < Math.min(maxSaveFiles, backups.listFiles().length - 1); j++) {
+						for (int j = 0; j < Math.min(maxSaveFiles, Objects.requireNonNull(backups.listFiles()).length - 1); j++) {
 							if (folderSize(backups) >= maxSaveSize) {
 								File oldestBack = firstFileModified(backups);
 								sender.sendMessage(prefix + ChatColor.RED + oldestBack.getName()
@@ -404,7 +387,7 @@ public class Main extends JavaPlugin {
 								break;
 							}
 						}
-					} catch (Error | Exception e) {
+					} catch (Error | Exception ignored) {
 					}
 					final long time = lastSave = System.currentTimeMillis();
 					Date d = new Date(lastSave);
@@ -429,9 +412,9 @@ public class Main extends JavaPlugin {
 						return;
 					}
 
-					sender.sendMessage(prefix + " Done! Backup took:" + timeDifS);
+					sender.sendMessage(prefix + " Done! Backup took: " + timeDifS);
 					File tempBackupCheck = new File(getMasterFolder(), "backups");
-					sender.sendMessage(prefix + " Compressed server with size of "
+					sender.sendMessage(prefix + " Compressed world with size of "
 							+ (humanReadableByteCount(folderSize(getMasterFolder())
 							- (tempBackupCheck.exists() ? folderSize(tempBackupCheck) : 0), false))
 							+ " to " + humanReadableByteCount(zipFile.length(), false));
@@ -527,7 +510,7 @@ public class Main extends JavaPlugin {
 	}
 
 	public void sendFTP(CommandSender sender, File zipFile, FTPClient ftpClient, FileInputStream zipFileStream, String path)
-			throws SocketException, IOException {
+			throws IOException {
 		ftpClient.connect(serverFTP, portFTP);
 		ftpClient.login(userFTP, passwordFTP);
 		ftpClient.enterLocalPassiveMode();
@@ -542,27 +525,6 @@ public class Main extends JavaPlugin {
 			sender.sendMessage(prefix + " Something failed (maybe)! Status=" + ftpClient.getStatus());
 		}
 
-	}
-
-	public long toTime(String time) {
-		long militime = 0;
-		for(String split : time.split(",")) {
-			split = split.trim();
-			long k = 1;
-			if (split.toUpperCase().endsWith("M")) {
-				k *= 60;
-			} else if (split.toUpperCase().endsWith("H")) {
-				k *= 60 * 60;
-			} else if (split.toUpperCase().endsWith("D")) {
-				k *= 60 * 60 * 24;
-			} else {
-				k *= 60 * 60 * 24;
-			}
-			double j = Double.parseDouble(split.substring(0, split.length() - 1));
-			militime += (j*k);
-		}
-		militime *= 1000;
-		return militime;
 	}
 
 	public void restore(File backup) {
@@ -600,7 +562,7 @@ public class Main extends JavaPlugin {
 		File parentTo = getMasterFolder().getParentFile();
 		try {
 			byte[] buffer = new byte[1024];
-			ZipInputStream zis = new ZipInputStream(new FileInputStream(backup));
+			ZipInputStream zis = new ZipInputStream(Files.newInputStream(backup.toPath()));
 			ZipEntry zipEntry = zis.getNextEntry();
 			while (zipEntry != null) {
 				try {
@@ -626,8 +588,8 @@ public class Main extends JavaPlugin {
 	}
 
 	public void zipFolder(String srcFolder, String destZipFile) throws Exception {
-		ZipOutputStream zip = null;
-		FileOutputStream fileWriter = null;
+		ZipOutputStream zip;
+		FileOutputStream fileWriter;
 
 		fileWriter = new FileOutputStream(destZipFile);
 		zip = new ZipOutputStream(fileWriter);
@@ -643,8 +605,6 @@ public class Main extends JavaPlugin {
 	private void addFileToZip(String path, String srcFile, ZipOutputStream zip) {
 		try {
 			File folder = new File(srcFile);
-			if (!isExempt(srcFile)) {
-
 				if(!currentlySaving)
 					return;
 				// this.savedBytes += folder.length();
@@ -665,7 +625,6 @@ public class Main extends JavaPlugin {
 					}
 					in.close();
 				}
-			}
 		}catch (FileNotFoundException e4){
 			Bukkit.getConsoleSender().sendMessage(prefix + " FAILED TO ZIP FILE: " + srcFile+" Reason: "+e4.getClass().getName());
 			e4.printStackTrace();
@@ -681,11 +640,10 @@ public class Main extends JavaPlugin {
 	}
 
 	private void addFolderToZip(String path, String srcFolder, ZipOutputStream zip) {
-		if ((!path.toLowerCase().contains("backups")) && (!isExempt(path))) {
 			try {
 				File folder = new File(srcFolder);
 				String[] arrayOfString;
-				int j = (arrayOfString = folder.list()).length;
+				int j = (Objects.requireNonNull(arrayOfString = folder.list())).length;
 				for (int i = 0; i < j; i++) {
 					if(!currentlySaving)
 						break;
@@ -696,9 +654,8 @@ public class Main extends JavaPlugin {
 						addFileToZip(path + separator + folder.getName(), srcFolder +  separator + fileName, zip);
 					}
 				}
-			} catch (Exception e) {
+			} catch (Exception ignored) {
 			}
-		}
 	}
 
 	private long toByteSize(String s) {
@@ -738,11 +695,6 @@ public class Main extends JavaPlugin {
 		}
 		Bukkit.getConsoleSender().sendMessage("Error while converting number in day.");
 		return null;
-	}
-	public World loadWorld(String worldName) {
-		WorldCreator worldCreator = new WorldCreator(worldName);
-		Bukkit.getServer().createWorld(worldCreator);
-		return Bukkit.getWorld(worldName);
 	}
 }
 
