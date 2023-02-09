@@ -4,19 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="43bd3f57-6231-437d-aabf-a0d688a6d043" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/ServerRestorer.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/TedsBackupAndRestore.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.project" beforeDir="false" afterPath="$PROJECT_DIR$/.project" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/resources/plugin.yml" beforeDir="false" afterPath="$PROJECT_DIR$/resources/plugin.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/zombie_striker/sr/DependencyDownloader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/zombie_striker/sr/GithubDependDownloader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/zombie_striker/sr/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/me/TedLogan/tbar/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/zombie_striker/sr/Metrics.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/me/TedLogan/tbar/Metrics.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/me/zombie_striker/sr/Updater.java" beforeDir="false" />
-    </list>
+    <list default="true" id="43bd3f57-6231-437d-aabf-a0d688a6d043" name="Default Changelist" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
