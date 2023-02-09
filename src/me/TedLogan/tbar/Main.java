@@ -233,8 +233,6 @@ public class Main extends JavaPlugin {
 			}
 		}.runTaskTimerAsynchronously(this, 20, 20*60);
 
-		new Metrics(this);
-
 	}
 
 	@Override
