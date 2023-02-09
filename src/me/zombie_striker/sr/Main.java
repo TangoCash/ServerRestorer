@@ -285,7 +285,7 @@ public class Main extends JavaPlugin {
 			return true;
 		}
 		if (args[0].equalsIgnoreCase("restore")) {
-			if(true) {
+			if(false) {
 				sender.sendMessage(prefix+ "Restore feature is temporarily disabled. Please load the files manually.");
 			return true;
 			}
@@ -641,7 +641,8 @@ public class Main extends JavaPlugin {
 		} catch (Exception e4) {
 			e4.printStackTrace();
 		}
-		Bukkit.shutdown();
+		//Bukkit.shutdown();
+		Bukkit.spigot().restart();
 	}
 
 	public void zipFolder(String srcFolder, String destZipFile) throws Exception {
